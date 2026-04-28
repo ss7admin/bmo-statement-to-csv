@@ -101,6 +101,36 @@ The generated CSV has the following columns:
 
 Opening and closing balance lines are included in the output for reference.
 
+### Bulk Conversion
+
+Convert all PDFs in a directory at once:
+
+```bash
+bmo-statement --bulk <input_dir> [output_dir]
+```
+
+| Argument       | Description                                          |
+| -------------- | ---------------------------------------------------- |
+| `input_dir`    | Directory containing PDF statements                  |
+| `output_dir`   | Optional output directory (defaults to `input_dir`) |
+
+**Example:**
+
+```bash
+bmo-statement --bulk ./statements ./statements_csv
+```
+
+Output:
+
+```
+[OK] january.pdf -> january.csv (33 transactions)
+[OK] february.pdf -> february.csv (28 transactions)
+
+Done: 2 converted, 0 failed
+```
+
+Files that fail to parse are reported with their error and the tool exits non-zero.
+
 ## Supported Transaction Types
 
 - INTERAC e-Transfers (Sent/Received)
