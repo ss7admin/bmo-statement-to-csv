@@ -10,3 +10,12 @@ venv/
 .env
 .DS_Store
 *.pdf
+.claude/
+*.log
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.tox/
+CLAUDE.local.md
