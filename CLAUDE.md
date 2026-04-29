@@ -1,8 +1,14 @@
 # BMO Statement to CSV — Project Guide
 
-## What this project does
+## Project summary
 
-CLI tool (`bmo2csv`) that converts BMO bank statement PDFs into CSV format.
+This project is a Python CLI tool called `bmo2csv` that converts BMO bank statement PDFs into CSV files.
+
+Primary goal:
+
+- Parse BMO statement PDFs reliably.
+- Output clean CSV rows with date, description, withdrawal, deposit, balance, statement date, and account number.
+- Keep the parser easy to test and extend.
 
 ## Architecture
 
@@ -25,6 +31,46 @@ tests/
 - `_classify()` decides debit vs credit based on description keywords
 - `_merge_continuations()` merges merchant ID lines into the previous transaction
 - Output: `List[Transaction]` objects
+
+## Parser behavior
+
+Important parser assumptions:
+
+- Parsing is line-based after extracting text from all PDF pages.
+- A transaction line usually begins with a compact date token such as `Apr02`.
+- Amounts are detected by scanning from the end of the line backward.
+- Debit/credit classification currently depends partly on description keywords.
+- Continuation lines may belong to the previous transaction and should be merged carefully.
+
+When changing parsing logic:
+
+- Prefer small, targeted changes.
+- Preserve existing passing behavior unless a test is intentionally updated.
+- Add or update tests for every parsing edge case fixed.
+
+## Coding guidance
+
+- Keep the code simple and explicit.
+- Prefer focused helper functions over large complex rewrites.
+- Do not introduce heavy new dependencies unless clearly justified.
+- Keep standard-library-first wherever possible.
+- Preserve CLI compatibility unless explicitly changing the interface.
+
+## Workflow
+
+For non-trivial changes:
+
+1. Read relevant files first.
+2. Explain the plan before editing multiple files.
+3. Make the smallest safe change.
+4. Run tests after code changes.
+5. Summarize what changed and any remaining risks.
+
+Git workflow:
+
+- Use the configured git identity for this repo. This repo uses machine user qzemcoder <claude@qzem.com>
+- Do not add Claude attribution or co-author lines to commit messages.
+- Prefer feature branches for larger changes.
 
 ## Key data model (models.py)
 
@@ -70,3 +116,19 @@ Output dir defaults to input_dir. Files that fail exit non-zero with error detai
 - **Multi-page PDFs**: Continuation line merging may not work across page boundaries
 - **Statement metadata**: `StatementInfo` fields not populated during parse
 - **Error handling**: Basic, needs validation
+
+## Notes for future sessions
+
+Before making parser changes, inspect examples in tests and preserve output consistency.
+If you fix a parsing bug, add a regression test whenever possible.
+
+## Session expectations
+
+1. **Read** relevant files before suggesting changes
+2. **Test** after every code edit (`pytest`)
+3. **Explain** reasoning for parser changes
+4. **Preserve** existing working behavior
+
+---
+
+_Last updated: 2026-04-28_
