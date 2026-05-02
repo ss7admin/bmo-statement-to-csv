@@ -21,7 +21,7 @@ bmo_statement/
   cli.py             # CLI entry point (bmo2csv)
 setup.py             # pip installable, console script: bmo2csv
 tests/
-  test_parser.py     # 7 pytest tests (all passing)
+  test_parser.py     # 8 pytest tests (all passing)
 ```
 
 ## How the parser works (parser.py)
@@ -91,7 +91,7 @@ ParsedStatement  # info, transactions, errors
 python3 -m pytest tests/ -v
 ```
 
-7 tests, all passing.
+8 tests, all passing.
 
 ## CLI usage
 

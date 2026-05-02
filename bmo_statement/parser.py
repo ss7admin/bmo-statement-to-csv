@@ -115,16 +115,13 @@ def _clean_description(raw: str) -> str:
         cleaned = cleaned.replace('e-Transfer', ' e-Transfer').strip()
         return cleaned
 
-    # Handle Debit Card Purchase patterns
+    # Handle Debit Card Purchase patterns (camelCase from PDF merge, e.g. DebitCardPurchase…)
     if 'DebitCardPurchase' in raw:
-        # Strip any merchant ID prefix (e.g. 'AMZNMKTP... ') that may have been merged
         prefix_start = raw.index('DebitCardPurchase')
         raw = raw[prefix_start:]
-        # Split camelCase: 'DebitCardPurchase' → 'Debit Card Purchase'
         prefix = 'Debit Card Purchase'
         rest = raw[len('DebitCardPurchase'):]
 
-        # Clean leading/trailing commas/spaces
         rest = rest.strip(',').strip()
 
         # Try to find embedded date at end (e.g. 3APR2025)
@@ -141,7 +138,6 @@ def _clean_description(raw: str) -> str:
         else:
             type_part = ''
 
-        # Clean the type part (e.g. ONLINEPURCHASE → Online Purchase)
         if type_part:
             type_part = _split_camel_case(type_part)
 
@@ -156,6 +152,53 @@ def _clean_description(raw: str) -> str:
             return f'{prefix} - {type_part}'
 
         return prefix
+
+    # Handle Debit Card Purchase patterns where the type is an all-caps merged
+    # phrase (e.g. 'ONLINEPURCHASE 03APR2025' or 'ONLINEPURCHASE').
+    # These come from PDF text extraction where "Debit Card Purchase" became
+    # one token and the type description merged into it.
+    if any(merged in raw for merged in _KNOWN_MERGED):
+        # Find which known merged phrase is present
+        matched_merged = None
+        for merged, split_str in _KNOWN_MERGED.items():
+            if merged in raw:
+                matched_merged = merged
+                break
+        prefix = 'Debit Card Purchase'
+        # Extract the part after the merged phrase
+        idx = raw.index(matched_merged)
+        after = raw[idx + len(matched_merged):].strip(',').strip()
+
+        # Try to find embedded date at end (e.g. 3APR2025)
+        date_match = None
+        if after:
+            date_match = re.search(r'(\d{1,2})([A-Z]{3})(\d{4})$', after)
+            if date_match:
+                day = date_match.group(1)
+                month_abbr = date_match.group(2).lower()
+                year = date_match.group(3)
+                type_part = after[:date_match.start()].strip(',').strip()
+            else:
+                type_part = after
+        else:
+            type_part = ''
+
+        if not type_part:
+            # The entire after was just the date; the type is the matched phrase itself
+            type_part = _split_camel_case(matched_merged)
+
+        if type_part:
+            type_part = _split_camel_case(type_part)
+
+        if type_part:
+            if date_match:
+                month_num = _MONTH_NAMES.get(month_abbr, '')
+                if month_num:
+                    date_formatted = f"{month_num}/{day.zfill(2)}/{year}"
+                else:
+                    date_formatted = date_match.group(0)
+                return f'{prefix} - {type_part} - {date_formatted}'
+            return f'{prefix} - {type_part}'
 
     # Handle Opening/Closing statements (may be camelCase merged)
     if raw.startswith('Opening'):
