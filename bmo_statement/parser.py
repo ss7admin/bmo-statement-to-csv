@@ -358,7 +358,7 @@ def _merge_continuations(parsed: List[dict], raw_lines: List[str]) -> List[dict]
                             trn_id = trn_match.group(1)
                     # Continuation line — append to previous description
                     prev['description_parts'] = candidate + ' ' + ' '.join(prev['description_parts'])
-                    prev['raw_desc'] = prev['description_parts'][0] if prev['description_parts'] else ''
+                    prev['raw_desc'] = prev['description_parts']
 
         entry['_line_idx'] = i
         entry['trn_id'] = trn_id
@@ -377,7 +377,11 @@ def _to_transaction(entry: dict, statement_date: str) -> Transaction:
     normalized_date = _normalize_date(entry['date'], year)
 
     # Use cleaned description (raw_desc already cleaned by _merge_continuations)
-    description = entry['raw_desc'].strip()
+    raw = entry['raw_desc']
+    if isinstance(raw, list):
+        description = ' '.join(raw).strip()
+    else:
+        description = raw.strip()
     description = ' '.join(description.split())  # normalize whitespace
 
     classification = _classify(description, entry['amounts'])
