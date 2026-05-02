@@ -116,7 +116,10 @@ def _clean_description(raw: str) -> str:
         return cleaned
 
     # Handle Debit Card Purchase patterns
-    if raw.startswith('DebitCardPurchase'):
+    if 'DebitCardPurchase' in raw:
+        # Strip any merchant ID prefix (e.g. 'AMZNMKTP... ') that may have been merged
+        prefix_start = raw.index('DebitCardPurchase')
+        raw = raw[prefix_start:]
         # Split camelCase: 'DebitCardPurchase' → 'Debit Card Purchase'
         prefix = 'Debit Card Purchase'
         rest = raw[len('DebitCardPurchase'):]
@@ -305,7 +308,8 @@ def _merge_continuations(parsed: List[dict], raw_lines: List[str]) -> List[dict]
                 candidate = raw_lines[j].strip()
                 if candidate and not _is_date_token(candidate):
                     # Continuation line — append to previous description
-                    entry['description_parts'] = candidate + ' ' + ' '.join(entry['description_parts'])
+                    prev['description_parts'] = candidate + ' ' + ' '.join(prev['description_parts'])
+                    prev['raw_desc'] = prev['description_parts'][0] if prev['description_parts'] else ''
 
         entry['_line_idx'] = i
         result.append(entry)

@@ -110,13 +110,6 @@ bmo2csv --bulk <input_dir> [output_dir]
 
 Output dir defaults to input_dir. Files that fail exit non-zero with error details.
 
-## Known issues / TODO
-
-- **Balance handling**: Lines with 2 amounts — verify classification for all transaction types
-- **Multi-page PDFs**: Continuation line merging may not work across page boundaries
-- **Statement metadata**: `StatementInfo` fields not populated during parse
-- **Error handling**: Basic, needs validation
-
 ## Notes for future sessions
 
 Before making parser changes, inspect examples in tests and preserve output consistency.

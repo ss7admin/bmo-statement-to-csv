@@ -44,10 +44,12 @@ class TestParser:
             assert hasattr(t, 'deposit')
             assert hasattr(t, 'balance')
 
-    def test_opening_balance(self, parsed_transactions):
-        opening = [t for t in parsed_transactions if 'opening' in t.description.lower()]
-        assert len(opening) > 0
-        assert opening[0].balance is not None
+    def test_closing_balance(self, parsed_transactions):
+        closing = [t for t in parsed_transactions if 'closing' in t.description.lower()]
+        assert len(closing) == 1
+        # The closing total row has debit/credit totals but no balance column
+        assert closing[0].withdrawal == '4,428.29'
+        assert closing[0].deposit == '5,984.97'
 
 
 class TestCSVWriter:
@@ -73,3 +75,19 @@ class TestCSVWriter:
             assert len(rows) == len(parsed_transactions)
             opening = [r for r in rows if 'opening' in r['Description'].lower()]
             assert len(opening) == 1
+
+    def test_csv_content_with_real_data(self, parsed_transactions, tmp_path):
+        output = tmp_path / "test.csv"
+        write_csv(parsed_transactions, str(output))
+        with open(output) as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+        assert len(rows) == len(parsed_transactions)
+        # verify dates are parsed correctly
+        assert rows[0]["Date"] == "04/01/2025"
+        # verify first deposit
+        assert rows[1]["Deposit"] == "666.66"
+        # verify debit card entry with full description
+        debit = [r for r in rows if "04/03/2025" in r["Date"] and "Debit" in r["Description"]]
+        assert len(debit) > 0
+        assert "ONLINE PURCHASE" in debit[0]["Description"]
