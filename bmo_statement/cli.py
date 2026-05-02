@@ -68,7 +68,7 @@ def _bulk_convert(args):
         print(f"Error: '{args.input}' is not a directory", file=sys.stderr)
         sys.exit(1)
 
-    pdfs = sorted(input_dir.glob("*.pdf")) + sorted(input_dir.glob("*.PDF"))
+    pdfs = sorted(set(input_dir.glob("*.pdf")) | set(input_dir.glob("*.PDF")), key=lambda p: p.name)
     if not pdfs:
         print(f"No PDF files found in '{input_dir}'")
         sys.exit(1)
