@@ -344,17 +344,24 @@ def _merge_continuations(parsed: List[dict], raw_lines: List[str]) -> List[dict]
 
     result = []
     for i, entry in enumerate(parsed):
+        trn_id = ''
         if result:
             prev = result[-1]
             # Check if there's a continuation line between previous transaction and this one
             for j in range(prev.get('_line_idx', -1) + 1, i):
                 candidate = raw_lines[j].strip()
                 if candidate and not _is_date_token(candidate):
+                    # Extract TRNID from continuation line if present
+                    if not trn_id:
+                        trn_match = re.search(r'TRNID:(\S+)', candidate)
+                        if trn_match:
+                            trn_id = trn_match.group(1)
                     # Continuation line — append to previous description
                     prev['description_parts'] = candidate + ' ' + ' '.join(prev['description_parts'])
                     prev['raw_desc'] = prev['description_parts'][0] if prev['description_parts'] else ''
 
         entry['_line_idx'] = i
+        entry['trn_id'] = trn_id
         result.append(entry)
 
     # Apply description cleaning to merged entries
@@ -382,6 +389,7 @@ def _to_transaction(entry: dict, statement_date: str) -> Transaction:
         deposit=classification['deposit'],
         balance=classification['balance'],
         statement_date=statement_date,
+        trn_id=entry.get('trn_id', ''),
     )
 
 

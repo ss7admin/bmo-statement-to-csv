@@ -16,6 +16,7 @@ class Transaction:
     balance: Optional[Decimal] = None
     statement_date: str = ""
     account_number: str = ""
+    trn_id: str = ""
 
     @property
     def net_change(self) -> Optional[Decimal]:
