@@ -29,8 +29,8 @@ def extract_statement_date(raw_lines: List[str]) -> str:
 
 
 def _is_date_token(text: str) -> bool:
-    """Check if a token looks like a transaction date (e.g. Apr01, May05)."""
-    if len(text) not in (5, 6):
+    """Check if a token looks like a transaction date (e.g. Apr01, May05, 16APR2025)."""
+    if len(text) not in (5, 6, 9):
         return False
     if len(text) == 5:
         month = text[:3].lower()
@@ -47,7 +47,15 @@ def _is_date_token(text: str) -> bool:
                       'jul', 'aug', 'sep', 'oct', 'nov', 'dec')
             and text[4:].isdigit()
         )
-    return False
+    # 9-char variant like "16APR2025" (DDMMYYYY format)
+    day = text[:2]
+    month = text[2:5].lower()
+    year = text[5:]
+    return (
+        day.isdigit() and month in ('jan', 'feb', 'mar', 'apr', 'may', 'jun',
+                      'jul', 'aug', 'sep', 'oct', 'nov', 'dec')
+        and year.isdigit() and len(year) == 4
+    )
 
 
 def _is_amount(text: str) -> bool:
@@ -79,14 +87,18 @@ _MONTH_NAMES = {
 
 
 def _normalize_date(date_str: str, year: str) -> str:
-    """Convert raw PDF date (e.g. 'Apr02') to MM/DD/YYYY format."""
+    """Convert raw PDF date (e.g. 'Apr02', '16APR2025') to MM/DD/YYYY format."""
     if _is_date_token(date_str):
         if len(date_str) == 5:
             month_abbr = date_str[:3].lower()
             day = date_str[3:]
-        else:
+        elif len(date_str) == 6:
             month_abbr = date_str[:3].lower()
             day = date_str[4:]
+        else:
+            # 9-char DDMMYYYY format
+            month_abbr = date_str[2:5].lower()
+            day = date_str[:2]
         month = _MONTH_NAMES.get(month_abbr)
         if month and day.isdigit():
             return f"{month}/{day.zfill(2)}/{year}"
@@ -100,6 +112,31 @@ def _extract_year(statement_date: str) -> str:
             return part
     return str(2025)
 
+
+def _strip_merchant_id(text: str) -> str:
+    """Extract and return a BMO merchant ID if it's prepended to the text.
+
+    Merchant IDs appear on the line before a Debit Card Purchase and look like:
+        AMZNMKTPCAF19PQ67GON  (Alibaba)
+        ALIBABA.COMBC         (Alibaba)
+        VISA*XXXX             (Visa)
+        MERCHAND            (generic)
+    We return the merchant ID so it can be prepended to the cleaned description.
+    """
+    # Pattern 1: TRNID value (no dots, no spaces, not a simple amount)
+    # These are pure alphanumeric merchant identifiers from the continuation line
+    # Pattern 2: TRNID values can also be just the raw text before DebitCardPurchase
+    # First check if there's a clear merchant ID from the continuation line
+    # TRNID values are typically 16+ chars, alphanumeric, no spaces
+    if ' ' in text:
+        first_word = text.split()[0]
+        # Check if first word looks like a TRNID merchant ID
+        # TRNIDs are typically all caps, alphanumeric, no lowercase
+        if (all(c.isalnum() for c in first_word) and
+            len(first_word) >= 8 and
+            first_word.isupper()):
+            return first_word
+    return ''
 
 def _clean_description(raw: str) -> str:
     """Clean up merged/compacted descriptions from PDF parsing."""
@@ -124,10 +161,11 @@ def _clean_description(raw: str) -> str:
 
         rest = rest.strip(',').strip()
 
-        # Try to find embedded date at end (e.g. 3APR2025)
+        # Try to find embedded date (e.g. 3APR2025) — may be followed by
+        # merchant ID text after continuation-line merge
         date_match = None
         if rest:
-            date_match = re.search(r'(\d{1,2})([A-Z]{3})(\d{4})$', rest)
+            date_match = re.search(r'(\d{1,2})([A-Z]{3})(\d{4})', rest)
             if date_match:
                 day = date_match.group(1)
                 month_abbr = date_match.group(2).lower()
@@ -169,10 +207,11 @@ def _clean_description(raw: str) -> str:
         idx = raw.index(matched_merged)
         after = raw[idx + len(matched_merged):].strip(',').strip()
 
-        # Try to find embedded date at end (e.g. 3APR2025)
+        # Try to find embedded date — may be followed by merchant ID text
+        # after continuation-line merge
         date_match = None
         if after:
-            date_match = re.search(r'(\d{1,2})([A-Z]{3})(\d{4})$', after)
+            date_match = re.search(r'(\d{1,2})([A-Z]{3})(\d{4})', after)
             if date_match:
                 day = date_match.group(1)
                 month_abbr = date_match.group(2).lower()
@@ -336,21 +375,16 @@ def _classify(description: str, amounts: List[Decimal]) -> dict:
 
 def _merge_continuations(parsed: List[dict], raw_lines: List[str]) -> List[dict]:
     """Merge continuation lines (merchant IDs on separate lines) into transactions."""
-    # Build a set of line indices that are transaction lines
-    txn_indices = set()
-    for i, line in enumerate(raw_lines):
-        if _parse_single_line(line) is not None:
-            txn_indices.add(i)
-
     result = []
     for i, entry in enumerate(parsed):
         trn_id = ''
         if result:
             prev = result[-1]
+            prev_line = prev.get('_line_idx', -1)
             # Check if there's a continuation line between previous transaction and this one
-            for j in range(prev.get('_line_idx', -1) + 1, i):
+            for j in range(prev_line + 1, i):
                 candidate = raw_lines[j].strip()
-                if candidate and not _is_date_token(candidate):
+                if candidate:
                     # Extract TRNID from continuation line if present
                     if not trn_id:
                         trn_match = re.search(r'TRNID:(\S+)', candidate)

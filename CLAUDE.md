@@ -1,5 +1,23 @@
 # BMO Statement to CSV
 
+## Description preservation invariant
+
+Transaction descriptions must preserve the raw text extracted from the PDF.
+
+Allowed transformation:
+
+- If a transaction description spans multiple lines, join those lines into a single description using one space.
+
+Not allowed:
+
+- Do not rewrite descriptions for readability.
+- Do not normalize wording.
+- Do not remove merchant IDs or trailing tokens.
+- Do not discard text after embedded dates.
+- Do not shorten descriptions to a cleaner phrase.
+
+The description field must contain the full original text from the PDF, only flattened to one line.
+
 ## Project summary
 
 This project is a Python CLI tool called `bmo2csv` that converts BMO bank statement PDFs into CSV files.
