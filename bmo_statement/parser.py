@@ -127,7 +127,7 @@ def _strip_merchant_id(text: str) -> str:
     # These are pure alphanumeric merchant identifiers from the continuation line
     # Pattern 2: TRNID values can also be just the raw text before DebitCardPurchase
     # First check if there's a clear merchant ID from the continuation line
-    # TRNID values are typically 16+ chars, alphanumeric, no spaces
+    # TRNIDs are typically 16+ chars, alphanumeric, no spaces
     if ' ' in text:
         first_word = text.split()[0]
         # Check if first word looks like a TRNID merchant ID
@@ -137,6 +137,7 @@ def _strip_merchant_id(text: str) -> str:
             first_word.isupper()):
             return first_word
     return ''
+
 
 def _clean_description(raw: str) -> str:
     """Clean up merged/compacted descriptions from PDF parsing."""
@@ -376,27 +377,33 @@ def _classify(description: str, amounts: List[Decimal]) -> dict:
 def _merge_continuations(parsed: List[dict], raw_lines: List[str]) -> List[dict]:
     """Merge continuation lines (merchant IDs on separate lines) into transactions."""
     result = []
-    for i, entry in enumerate(parsed):
+    i = 0
+    while i < len(parsed):
+        entry = parsed[i]
         trn_id = ''
-        if result:
-            prev = result[-1]
-            prev_line = prev.get('_line_idx', -1)
-            # Check if there's a continuation line between previous transaction and this one
-            for j in range(prev_line + 1, i):
-                candidate = raw_lines[j].strip()
-                if candidate:
-                    # Extract TRNID from continuation line if present
-                    if not trn_id:
-                        trn_match = re.search(r'TRNID:(\S+)', candidate)
-                        if trn_match:
-                            trn_id = trn_match.group(1)
-                    # Continuation line — append to previous description
-                    prev['description_parts'] = candidate + ' ' + ' '.join(prev['description_parts'])
-                    prev['raw_desc'] = prev['description_parts']
+
+        # Check if there's a continuation line immediately after this transaction
+        # Look ahead to see if the next line contains a TRNID
+        next_line_idx = entry.get('_line_idx', i) + 1
+        if next_line_idx < len(raw_lines):
+            next_line = raw_lines[next_line_idx].strip()
+            if next_line:
+                # Check if the next line looks like a TRNID
+                # TRNID lines typically start with TRNID: followed by alphanumeric ID
+                trn_match = re.search(r'TRNID:(\S+)', next_line)
+                if trn_match:
+                    trn_id = trn_match.group(1)
+                else:
+                    # If it's not a TRNID line, check if it's a merchant ID
+                    # Merchant IDs are typically all caps, alphanumeric, no spaces
+                    if (next_line and all(c.isalnum() for c in next_line) and
+                        len(next_line) >= 8 and next_line.isupper()):
+                        trn_id = next_line
 
         entry['_line_idx'] = i
         entry['trn_id'] = trn_id
         result.append(entry)
+        i += 1
 
     # Apply description cleaning to merged entries
     for entry in result:
