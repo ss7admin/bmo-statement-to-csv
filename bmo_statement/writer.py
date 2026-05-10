@@ -12,9 +12,13 @@ def write_csv(transactions: List[Transaction], output_path: str) -> None:
         writer = csv.writer(f)
         writer.writerow(["Date", "Description", "Withdrawal", "Deposit", "Balance"])
         for t in transactions:
+            # Include TRNID in description if it exists
+            description = t.description
+            if t.trn_id:
+                description = f"{t.trn_id} - {description}"
             writer.writerow([
                 t.date,
-                t.description,
+                description,
                 _format_amount(t.withdrawal),
                 _format_amount(t.deposit),
                 _format_amount(t.balance),
