@@ -395,16 +395,10 @@ def _merge_continuations(parsed: List[dict], raw_lines: List[str]) -> List[dict]
                 candidate = raw_lines[prev_line_idx].strip()
                 if candidate and not _is_date_token(candidate):
                     # Extract TRNID from continuation line if present
-                    if not trn_id:
-                        trn_match = re.search(r'TRNID:(\S+)', candidate)
-                        if trn_match:
-                            trn_id = trn_match.group(1)
-                        else:
-                            # If it's not a TRNID line, check if it's a merchant ID
-                            # Merchant IDs are typically all caps, alphanumeric, no spaces
-                            if (candidate and all(c.isalnum() for c in candidate) and
-                               len(candidate) >= 8 and candidate.isupper()):
-                                trn_id = candidate
+                    # TRNIDs are standalone lines that are all caps, alphanumeric, no spaces
+                    if (candidate and all(c.isalnum() for c in candidate) and
+                            len(candidate) >= 8 and candidate.isupper()):
+                        trn_id = candidate
 
         entry['_line_idx'] = line_idx
         entry['trn_id'] = trn_id
