@@ -377,34 +377,9 @@ def _classify(description: str, amounts: List[Decimal]) -> dict:
 def _merge_continuations(parsed: List[dict], raw_lines: List[str]) -> List[dict]:
     """Merge continuation lines (merchant IDs on separate lines) into transactions."""
     result = []
-    i = 0
-    while i < len(parsed):
-        entry = parsed[i]
-
-        trn_id = ''
-
-        # Check if there's a continuation line immediately after this transaction
-        # Look ahead to see if the next line contains a TRNID
-        next_line_idx = entry.get('_line_idx', i) + 1
-        if next_line_idx < len(raw_lines):
-            next_line = raw_lines[next_line_idx].strip()
-            if next_line:
-                # Check if the next line looks like a TRNID
-                # TRNID lines typically start with TRNID: followed by alphanumeric ID
-                trn_match = re.search(r'TRNID:(\S+)', next_line)
-                if trn_match:
-                    trn_id = trn_match.group(1)
-                else:
-                    # If it's not a TRNID line, check if it's a merchant ID
-                    # Merchant IDs are typically all caps, alphanumeric, no spaces
-                    if (next_line and all(c.isalnum() for c in next_line) and
-                        len(next_line) >= 8 and next_line.isupper()):
-                        trn_id = next_line
-
-        entry['_line_idx'] = i
-        entry['trn_id'] = trn_id
+    for entry in parsed:
+        # No TRNID processing - just return the parsed transactions as-is
         result.append(entry)
-        i += 1
 
     # Apply description cleaning to merged entries
     for entry in result:
