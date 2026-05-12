@@ -376,30 +376,35 @@ def _classify(description: str, amounts: List[Decimal]) -> dict:
 
 def _merge_continuations(parsed: List[dict], raw_lines: List[str]) -> List[dict]:
     """Merge continuation lines (merchant IDs on separate lines) into transactions."""
-    # First, build a mapping of line indices to TRNID values
-    trnid_map = {}
-    for i, line in enumerate(raw_lines):
-        stripped_line = line.strip()
-        if stripped_line:
-            # Check if this line is a TRNID (standalone, all caps, alphanumeric, 8+ chars)
-            if (stripped_line and all(c.isalnum() for c in stripped_line) and
-                len(stripped_line) >= 8 and stripped_line.isupper()):
-                trnid_map[i] = stripped_line
-
     result = []
-    for i, entry in enumerate(parsed):
+    i = 0
+    while i < len(parsed):
+        entry = parsed[i]
+
         trn_id = ''
 
-        # Check if the previous line is a TRNID line
-        line_idx = entry.get('_line_idx', i)
-        if line_idx > 0:
-            prev_line_idx = line_idx - 1
-            if prev_line_idx in trnid_map:
-                trn_id = trnid_map[prev_line_idx]
+        # Check if there's a continuation line immediately after this transaction
+        # Look ahead to see if the next line contains a TRNID
+        next_line_idx = entry.get('_line_idx', i) + 1
+        if next_line_idx < len(raw_lines):
+            next_line = raw_lines[next_line_idx].strip()
+            if next_line:
+                # Check if the next line looks like a TRNID
+                # TRNID lines typically start with TRNID: followed by alphanumeric ID
+                trn_match = re.search(r'TRNID:(\S+)', next_line)
+                if trn_match:
+                    trn_id = trn_match.group(1)
+                else:
+                    # If it's not a TRNID line, check if it's a merchant ID
+                    # Merchant IDs are typically all caps, alphanumeric, no spaces
+                    if (next_line and all(c.isalnum() for c in next_line) and
+                        len(next_line) >= 8 and next_line.isupper()):
+                        trn_id = next_line
 
-        entry['_line_idx'] = line_idx
+        entry['_line_idx'] = i
         entry['trn_id'] = trn_id
         result.append(entry)
+        i += 1
 
     # Apply description cleaning to merged entries
     for entry in result:
@@ -441,10 +446,9 @@ def parse(pdf: pdfplumber.PDF) -> List[Transaction]:
 
     # Parse each line
     parsed = []
-    for i, line in enumerate(raw_lines):
+    for line in raw_lines:
         result = _parse_single_line(line)
         if result:
-            result['_line_idx'] = i  # Set the line index for continuation handling
             parsed.append(result)
 
     # Merge continuation lines into transactions
