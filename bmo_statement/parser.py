@@ -127,7 +127,7 @@ def _strip_merchant_id(text: str) -> str:
     # These are pure alphanumeric merchant identifiers from the continuation line
     # Pattern 2: TRNID values can also be just the raw text before DebitCardPurchase
     # First check if there's a clear merchant ID from the continuation line
-    # TRNID values are typically 16+ chars, alphanumeric, no spaces
+    # TRNIDs are typically 16+ chars, alphanumeric, no spaces
     if ' ' in text:
         first_word = text.split()[0]
         # Check if first word looks like a TRNID merchant ID
@@ -137,6 +137,7 @@ def _strip_merchant_id(text: str) -> str:
             first_word.isupper()):
             return first_word
     return ''
+
 
 def _clean_description(raw: str) -> str:
     """Clean up merged/compacted descriptions from PDF parsing."""
@@ -375,30 +376,26 @@ def _classify(description: str, amounts: List[Decimal]) -> dict:
 
 def _merge_continuations(parsed: List[dict], raw_lines: List[str]) -> List[dict]:
     """Merge continuation lines (merchant IDs on separate lines) into transactions."""
-    # Build a set of line indices that are transaction lines
-    txn_indices = set()
+    # First, build a mapping of line indices to TRNID values
+    trnid_map = {}
     for i, line in enumerate(raw_lines):
-        if _parse_single_line(line) is not None:
-            txn_indices.add(i)
+        stripped_line = line.strip()
+        if stripped_line:
+            # Check if this line is a TRNID (standalone, all caps, alphanumeric, 8+ chars)
+            if (stripped_line and all(c.isalnum() for c in stripped_line) and
+                len(stripped_line) >= 8 and stripped_line.isupper()):
+                trnid_map[i] = stripped_line
 
     result = []
     for i, entry in enumerate(parsed):
         trn_id = ''
 
-        # Check if the line immediately before this transaction is a continuation line
-        # with a merchant ID that should be associated with this transaction
+        # Check if the previous line is a TRNID line
         line_idx = entry.get('_line_idx', i)
         if line_idx > 0:
             prev_line_idx = line_idx - 1
-            # Check if the previous line is a continuation line (not a transaction line)
-            if prev_line_idx not in txn_indices:
-                candidate = raw_lines[prev_line_idx].strip()
-                if candidate and not _is_date_token(candidate):
-                    # Extract TRNID from continuation line if present
-                    # TRNIDs are standalone lines that are all caps, alphanumeric, no spaces
-                    if (candidate and all(c.isalnum() for c in candidate) and
-                            len(candidate) >= 8 and candidate.isupper()):
-                        trn_id = candidate
+            if prev_line_idx in trnid_map:
+                trn_id = trnid_map[prev_line_idx]
 
         entry['_line_idx'] = line_idx
         entry['trn_id'] = trn_id
@@ -447,7 +444,7 @@ def parse(pdf: pdfplumber.PDF) -> List[Transaction]:
     for i, line in enumerate(raw_lines):
         result = _parse_single_line(line)
         if result:
-            result['_line_idx'] = i  # Set line index for continuation logic
+            result['_line_idx'] = i  # Set the line index for continuation handling
             parsed.append(result)
 
     # Merge continuation lines into transactions
